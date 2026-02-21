@@ -1,59 +1,273 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Тестовая задача Alikassa (Минхаеров А.Р.)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## Установка
 
-## About Laravel
+    cd ali_test
+    composer install
+    php artisan vendor:publish
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+    ./sail build --no-cache
+    ./sail up
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+    ./sail artisan migrate
+    ./sail artisan db:seed
+    ./sail artisan storage:link
+    ./sail npm install
+    ./sail npm run dev
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Описание
 
-## Learning Laravel
+Система учета крипто-баланса позволяет пользователям безопасно управлять своими криптовалютными средствами, включая зачисление, вывод, переводы и оплату комиссий. Система разработана с учетом специфики блокчейна, асинхронности операций и обеспечения безопасности.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+## Основные возможности
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+- Управление балансом криптовалюты
+- Резервирование средств для обеспечения целостности транзакций
+- Полный аудит всех операций через историю транзакций
+- Асинхронная обработка уведомлений от блокчейна через webhook
+- Защита от race condition при параллельных операциях
+- Ограничение частоты операций для предотвращения злоупотреблений
 
-## Laravel Sponsors
+### API Endpoints
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Получение баланса
 
-### Premium Partners
+```
+GET /balance?currency=BTC
+```
+**Ответ:**
+```json
+{
+  "currency": "BTC",
+  "total_balance": 1.5,
+  "reserved_balance": 0.5,
+  "available_balance": 1.0
+}
+```
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+### Получение истории транзакций
 
-## Contributing
+```
+GET /balance/transactions?currency=BTC&type=deposit&limit=50
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+**Параметры:**
+- `currency` (опциональный) - Валюта, по умолчанию BTC.
+- `type` (опциональный) - Тип транзакции (deposit, withdrawal, transfer, reserve, release, fee, refund).
+- `limit` (опциональный) - Количество записей (1-100). По умолчанию 50.
 
-## Code of Conduct
+**Ответ:**
+```json
+{
+  "transactions": [
+    {
+      "id": 1,
+      "type": "deposit",
+      "type_label": "Депозит",
+      "amount": 0.5,
+      "currency": "BTC",
+      "balance_before": 1.0,
+      "balance_after": 1.5,
+      "description": "Депозит средств",
+      "created_at": "2023-01-01T00:00:00.000000Z"
+    }
+  ]
+}
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+### Получение деталей транзакции
 
-## Security Vulnerabilities
+```
+GET /balance/transaction/{transactionId}
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+**Параметры:**
+- `transactionId` - ID транзакции
 
-## License
+**Ответ:**
+```json
+{
+  "transaction": {
+    "id": 1,
+    "type": "deposit",
+    "type_label": "Депозит",
+    "amount": 0.5,
+    "currency": "BTC",
+    "balance_before": 1.0,
+    "balance_after": 1.5,
+    "reserved_before": 0,
+    "reserved_after": 0,
+    "description": "Депозит средств",
+    "status": "completed",
+    "created_at": "2023-01-01T00:00:00.000000Z"
+  }
+}
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+### Депозит средств
+
+```
+POST /balance/deposit
+```
+
+**Параметры:**
+- `amount` (обязательный) - Сумма для зачисления
+- `currency` (опциональный) - Валюта (BTC, ETH, USDT). По умолчанию BTC.
+- `reference_id` (опциональный) - Внешний ID транзакции
+- `description` (опциональный) - Описание транзакции
+
+**Пример запроса:**
+```json
+{
+  "amount": 0.5,
+  "currency": "BTC",
+  "reference_id": "tx_123456789",
+  "description": "Депозит от пользователя"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Средства успешно зачислены",
+  "balance": 1.5,
+  "available_balance": 1.0
+}
+```
+
+### Вывод средств
+
+```
+POST /balance/withdraw
+```
+
+**Параметры:**
+- `amount` (обязательный) - Сумма для вывода
+- `currency` (опциональный) - Валюта (BTC, ETH, USDT). По умолчанию BTC.
+- `reference_id` (опциональный) - Внешний ID транзакции
+- `description` (опциональный) - Описание транзакции
+
+**Пример запроса:**
+```json
+{
+  "amount": 0.5,
+  "currency": "BTC",
+  "reference_id": "tx_987654321",
+  "description": "Вывод средств"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Средства успешно выведены",
+  "balance": 1.0,
+  "available_balance": 0.5
+}
+```
+
+### Перевод средств другому пользователю
+
+```
+POST /balance/transfer
+```
+
+**Параметры:**
+- `to_user_id` (обязательный) - ID пользователя-получателя
+- `amount` (обязательный) - Сумма для перевода
+- `currency` (опциональный) - Валюта (BTC, ETH, USDT). По умолчанию BTC.
+- `description` (опциональный) - Описание транзакции
+
+**Пример запроса:**
+```json
+{
+  "to_user_id": 2,
+  "amount": 0.5,
+  "currency": "BTC",
+  "description": "Перевод за услуги"
+}
+```
+
+**Ответ:**
+```json
+{
+  "message": "Средства успешно переведены",
+  "balance": 1.0,
+  "available_balance": 0.5
+}
+```
+
+## Webhook-уведомления
+
+Система принимает уведомления от блокчейна о подтверждении транзакций:
+
+```
+POST /webhook/crypto
+```
+
+**Типы уведомлений:**
+- `deposit_confirmed` - Подтверждение депозита
+- `withdrawal_confirmed` - Подтверждение вывода
+- `deposit_failed` - Ошибка депозита
+- `withdrawal_failed` - Ошибка вывода
+
+**Пример webhook-а:**
+```json
+{
+  "event": "deposit_confirmed",
+  "user_id": 1,
+  "amount": 0.5,
+  "currency": "BTC",
+  "transaction_id": "tx_123456789"
+}
+```
+
+## Безопасность
+
+- Все операции с балансом защищены от race condition через транзакции базы данных
+- Проверка доступности средств перед резервированием
+- Полное логирование всех операций
+- Валидация всех входных данных
+- Уникальность внешних ID транзакций
+- Ограничение частоты операций для предотвращения злоупотреблений
+- Аутентификация пользователей для всех операций
+
+## Обработка ошибок
+
+Все ошибки возвращаются в формате:
+```json
+{
+  "error": "Описание ошибки"
+}
+```
+
+Коды ошибок:
+- 400 - Неверные параметры запроса
+- 401 - Не авторизован
+- 404 - Ресурс не найден
+- 429 - Превышен лимит операций
+- 500 - Внутренняя ошибка сервера
+
+## Примеры использования
+
+### Пополнение баланса пользователя
+
+1. Пользователь инициирует депозит через интерфейс
+2. Система резервирует средства (reserve)
+3. Система получает webhook о подтверждении транзакции в блокчейне
+4. Система зачисляет средства на баланс (deposit)
+
+### Вывод средств
+
+1. Пользователь инициирует вывод через интерфейс
+2. Система резервирует средства (reserve)
+3. Система списывает средства (withdrawal)
+4. Система отправляет транзакцию в блокчейн
+5. Система получает webhook о подтверждении транзакции
+
+### Перевод средств между пользователями
+
+1. Пользователь инициирует перевод другому пользователю
+2. Система резервирует средства у отправителя
+3. Система переводит средства получателю
+4. Система создает соответствующие записи в истории транзакций обоих пользователей
