@@ -102,13 +102,21 @@ class CryptoBalanceController extends Controller
         $referenceId = $request->get('reference_id');
         $description = $request->get('description', 'Депозит средств');
 
-        $result = $this->cryptoBalanceService->deposit($userId, $amount, $currency, $referenceId, $description);
+        // Add metadata
+        $metadata = [
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toISOString(),
+        ];
+
+        $result = $this->cryptoBalanceService->deposit($userId, $amount, $currency, $referenceId, $description, $metadata);
 
         if ($result['success']) {
             return response()->json([
                 'message' => $result['message'],
                 'balance' => $result['balance'],
                 'available_balance' => $result['available_balance'],
+                'transaction_id' => $result['transaction_id'],
             ]);
         } else {
             return response()->json(['error' => $result['error']], 400);
@@ -137,13 +145,22 @@ class CryptoBalanceController extends Controller
         $referenceId = $request->get('reference_id');
         $description = $request->get('description', 'Вывод средств');
 
-        $result = $this->cryptoBalanceService->withdraw($userId, $amount, $currency, $referenceId, $description);
+        // Add metadata
+        $metadata = [
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toISOString(),
+        ];
+
+        $result = $this->cryptoBalanceService->withdraw($userId, $amount, $currency, $referenceId, $description, $metadata);
 
         if ($result['success']) {
             return response()->json([
                 'message' => $result['message'],
                 'balance' => $result['balance'],
                 'available_balance' => $result['available_balance'],
+                'fee' => $result['fee'] ?? 0,
+                'transaction_id' => $result['transaction_id'],
             ]);
         } else {
             return response()->json(['error' => $result['error']], 400);
@@ -172,13 +189,22 @@ class CryptoBalanceController extends Controller
         $currency = $request->get('currency', 'BTC');
         $description = $request->get('description', 'Перевод средств');
 
-        $result = $this->cryptoBalanceService->transfer($fromUserId, $toUserId, $amount, $currency, $description);
+        // Add metadata
+        $metadata = [
+            'ip' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'timestamp' => now()->toISOString(),
+        ];
+
+        $result = $this->cryptoBalanceService->transfer($fromUserId, $toUserId, $amount, $currency, $description, $metadata);
 
         if ($result['success']) {
             return response()->json([
                 'message' => $result['message'],
                 'balance' => $result['balance'],
                 'available_balance' => $result['available_balance'],
+                'from_transaction_id' => $result['from_transaction_id'],
+                'to_transaction_id' => $result['to_transaction_id'],
             ]);
         } else {
             return response()->json(['error' => $result['error']], 400);

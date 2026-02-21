@@ -26,8 +26,12 @@ class CryptoTransaction extends Model
         'reserved_before',
         'reserved_after',
         'reference_id',
+        'external_id',
+        'blockchain_tx_id',
+        'confirmations',
         'description',
         'status',
+        'processed_at',
     ];
 
     /**
@@ -41,6 +45,8 @@ class CryptoTransaction extends Model
         'balance_after' => 'decimal:8',
         'reserved_before' => 'decimal:8',
         'reserved_after' => 'decimal:8',
+        'metadata' => 'array',
+        'processed_at' => 'datetime',
     ];
 
     /**
@@ -109,5 +115,29 @@ class CryptoTransaction extends Model
     public function scopeOfStatus($query, $status)
     {
         return $query->where('status', $status);
+    }
+
+    /**
+     * Scope a query to only include confirmed transactions.
+     */
+    public function scopeConfirmed($query)
+    {
+        return $query->where('confirmations', '>', 0);
+    }
+
+    /**
+     * Check if transaction is confirmed
+     */
+    public function isConfirmed(): bool
+    {
+        return $this->confirmations > 0;
+    }
+
+    /**
+     * Check if transaction is pending
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
     }
 }

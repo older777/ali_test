@@ -71,6 +71,8 @@ class WebhookController extends Controller
             'amount' => 'required|numeric|min:0.00000001',
             'currency' => 'required|string|in:BTC,ETH,USDT',
             'transaction_id' => 'required|string',
+            'blockchain_tx_id' => 'required|string',
+            'confirmations' => 'required|integer|min:1',
         ]);
 
         if ($validator->fails()) {
@@ -83,25 +85,44 @@ class WebhookController extends Controller
         $amount = $data['amount'];
         $currency = $data['currency'];
         $transactionId = $data['transaction_id'];
+        $blockchainTxId = $data['blockchain_tx_id'];
+        $confirmations = $data['confirmations'];
         $description = $data['description'] ?? 'Подтвержденный депозит';
 
-        // Check if transaction already exists
-        // In a real implementation, you might want to check by external transaction ID
-        // rather than creating a new deposit each time
+        // Add blockchain metadata
+        $metadata = [
+            'blockchain_tx_id' => $blockchainTxId,
+            'confirmations' => $confirmations,
+            'processed_at' => now()->toISOString(),
+        ];
 
+        // Check if this is an external deposit that needs to be recorded
+        // or if it's confirming an existing pending deposit
         $result = $this->cryptoBalanceService->deposit(
             $userId,
             $amount,
             $currency,
             $transactionId,
-            $description
+            $description,
+            $metadata
         );
 
         if ($result['success']) {
+            // Update the transaction with blockchain data
+            if (isset($result['transaction_id'])) {
+                $this->cryptoBalanceService->updateTransactionWithBlockchainData(
+                    $result['transaction_id'],
+                    $blockchainTxId,
+                    $confirmations,
+                    $metadata
+                );
+            }
+
             Log::info('Deposit confirmed and processed', [
                 'user_id' => $userId,
                 'amount' => $amount,
                 'transaction_id' => $transactionId,
+                'blockchain_tx_id' => $blockchainTxId,
             ]);
 
             return response()->json(['message' => 'Deposit confirmed and processed']);
@@ -122,12 +143,53 @@ class WebhookController extends Controller
      */
     protected function handleWithdrawalConfirmed(array $data): JsonResponse
     {
-        // For confirmed withdrawals, we might just want to log the confirmation
-        // since the funds were already deducted when the withdrawal was initiated
+        $validator = Validator::make($data, [
+            'transaction_id' => 'required|string|exists:crypto_transactions,reference_id',
+            'blockchain_tx_id' => 'required|string',
+            'confirmations' => 'required|integer|min:1',
+        ]);
 
-        Log::info('Withdrawal confirmed', $data);
+        if ($validator->fails()) {
+            Log::warning('Invalid withdrawal confirmed webhook data', $data);
 
-        return response()->json(['message' => 'Withdrawal confirmed']);
+            return response()->json(['error' => 'Invalid data'], 400);
+        }
+
+        $transactionId = $data['transaction_id'];
+        $blockchainTxId = $data['blockchain_tx_id'];
+        $confirmations = $data['confirmations'];
+
+        // Add blockchain metadata
+        $metadata = [
+            'blockchain_tx_id' => $blockchainTxId,
+            'confirmations' => $confirmations,
+            'processed_at' => now()->toISOString(),
+        ];
+
+        // Update the transaction with blockchain data
+        $result = $this->cryptoBalanceService->updateTransactionWithBlockchainData(
+            $transactionId,
+            $blockchainTxId,
+            $confirmations,
+            $metadata
+        );
+
+        if ($result['success']) {
+            Log::info('Withdrawal confirmed', [
+                'transaction_id' => $transactionId,
+                'blockchain_tx_id' => $blockchainTxId,
+                'confirmations' => $confirmations,
+            ]);
+
+            return response()->json(['message' => 'Withdrawal confirmed']);
+        } else {
+            Log::error('Failed to process confirmed withdrawal', [
+                'transaction_id' => $transactionId,
+                'error' => $result['error'],
+            ]);
+
+            return response()->json(['error' => $result['error']], 400);
+        }
     }
 
     /**
@@ -135,10 +197,33 @@ class WebhookController extends Controller
      */
     protected function handleDepositFailed(array $data): JsonResponse
     {
-        // For failed deposits, we might want to refund any reserved funds
-        // or update the transaction status
+        $validator = Validator::make($data, [
+            'transaction_id' => 'required|string',
+            'reason' => 'string|nullable',
+        ]);
 
-        Log::info('Deposit failed', $data);
+        if ($validator->fails()) {
+            Log::warning('Invalid deposit failed webhook data', $data);
+
+            return response()->json(['error' => 'Invalid data'], 400);
+        }
+
+        $transactionId = $data['transaction_id'];
+        $reason = $data['reason'] ?? 'Unknown reason';
+
+        // Add failure metadata
+        $metadata = [
+            'failed_at' => now()->toISOString(),
+            'failure_reason' => $reason,
+        ];
+
+        // In a real implementation, you would handle the failed deposit
+        // For now, we'll just log the event
+
+        Log::info('Deposit failed, funds should be handled accordingly', [
+            'transaction_id' => $transactionId,
+            'reason' => $reason,
+        ]);
 
         return response()->json(['message' => 'Deposit failed recorded']);
     }
@@ -148,13 +233,9 @@ class WebhookController extends Controller
      */
     protected function handleWithdrawalFailed(array $data): JsonResponse
     {
-        // For failed withdrawals, we need to refund the reserved funds
-
         $validator = Validator::make($data, [
-            'user_id' => 'required|integer|exists:users,id',
-            'amount' => 'required|numeric|min:0.00000001',
-            'currency' => 'required|string|in:BTC,ETH,USDT',
-            'transaction_id' => 'required|string',
+            'transaction_id' => 'required|string|exists:crypto_transactions,reference_id',
+            'reason' => 'string|nullable',
         ]);
 
         if ($validator->fails()) {
@@ -163,19 +244,21 @@ class WebhookController extends Controller
             return response()->json(['error' => 'Invalid data'], 400);
         }
 
-        $userId = $data['user_id'];
-        $amount = $data['amount'];
-        $currency = $data['currency'];
         $transactionId = $data['transaction_id'];
+        $reason = $data['reason'] ?? 'Unknown reason';
+
+        // Add failure metadata
+        $metadata = [
+            'failed_at' => now()->toISOString(),
+            'failure_reason' => $reason,
+        ];
 
         // In a real implementation, you would release the reserved funds
         // For now, we'll just log the event
 
         Log::info('Withdrawal failed, funds should be released', [
-            'user_id' => $userId,
-            'amount' => $amount,
-            'currency' => $currency,
             'transaction_id' => $transactionId,
+            'reason' => $reason,
         ]);
 
         return response()->json(['message' => 'Withdrawal failed recorded']);
